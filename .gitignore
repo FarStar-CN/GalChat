@@ -1,0 +1,16 @@
+# 默认忽略的文件
+/shelf/
+/workspace.xml
+.idea/
+.venv/
+__pycache__/
+build/
+*.spec
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+config.json
