@@ -18,7 +18,6 @@ from core.prompt_builder import PromptMode
 class ConversationState(Enum):
     IDLE = auto()
     WAIT_OPTIONS = auto()
-    # WAIT_REPLY 已移除，因为改为单阶段生成，点击即回复
 
 
 class ChatWidget(QWidget):
@@ -34,7 +33,6 @@ class ChatWidget(QWidget):
         self.history = []
         self.current_user_input = ""
 
-        # [新增] 缓存当前生成的选项数据 [{"label":Str, "content":Str}, ...]
         self.current_options_data = []
 
         self.state = ConversationState.IDLE
@@ -42,10 +40,16 @@ class ChatWidget(QWidget):
 
         self.input_handler = InputHandler()
         self.input_handler.new_message_received.connect(self.on_external_message)
+        self.apply_config()
         self.dir_manager = DirectionManager()
-
         self.init_ui()
         self.update_ui_by_state()
+
+    def apply_config(self):
+        is_monitor_on = self.cfg.get("enable_clipboard_monitor")
+        self.input_handler.set_enabled(is_monitor_on)
+        state_text = "开启" if is_monitor_on else "关闭"
+        self.log(f"剪贴板监听已{state_text}")
 
     def set_state(self, new_state: ConversationState):
         self.log(f"[状态切换] {self.state.name} -> {new_state.name}")

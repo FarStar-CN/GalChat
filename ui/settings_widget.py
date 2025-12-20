@@ -41,6 +41,10 @@ class SettingsWidget(QWidget):
         self.ai_name_input = QLineEdit(self.cfg.get("ai_name"))
         layout.addRow("AI 称呼 (右):", self.ai_name_input)
 
+        self.clipboard_check = QCheckBox("启用剪贴板监听")
+        self.clipboard_check.setChecked(self.cfg.get("enable_clipboard_monitor"))
+        layout.addRow("输入源:", self.clipboard_check)
+
         self.preset_checkbox = QCheckBox("启用预设回复库")
         self.preset_checkbox.setChecked(self.cfg.get("use_preset_directions"))
         layout.addRow("回复策略:", self.preset_checkbox)
@@ -63,7 +67,8 @@ class SettingsWidget(QWidget):
         self.cfg.set("user_name", self.user_name_input.text().strip())
         self.cfg.set("ai_name", self.ai_name_input.text().strip())
         self.cfg.set("use_preset_directions", self.preset_checkbox.isChecked())
+        self.cfg.set("enable_clipboard_monitor", self.clipboard_check.isChecked())
 
-        QMessageBox.information(self, "成功", "设置已保存，正在后台预热连接...")
+        QMessageBox.information(self, "成功", "设置已保存")
         if self.on_save_callback:
             self.on_save_callback()

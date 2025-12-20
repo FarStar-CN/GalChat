@@ -25,6 +25,11 @@ class InputHandler(QObject):
 
         # 记录最后一次 AI 生成的回复，用于过滤掉自己发出的内容
         self.last_ai_reply = ""
+        self.is_enabled = True
+
+    def set_enabled(self, enabled: bool):
+        """设置是否启用监听"""
+        self.is_enabled = enabled
 
     def update_ai_reply(self, text):
         """
@@ -43,6 +48,9 @@ class InputHandler(QObject):
         self.clipboard.setText(text)
 
     def _on_source_changed(self):
+
+        if not self.is_enabled:
+            return
 
         # 获取内容
         current_text = self.clipboard.text()

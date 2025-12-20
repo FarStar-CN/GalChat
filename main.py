@@ -41,10 +41,14 @@ class MainWindow(QMainWindow):
         self.chat_page = ChatWidget(self.cfg, self.logs_page.append_log)
 
         # 设置页面保存时，触发 chat_page 的重新预热
+        def on_settings_saved():
+            self.chat_page.run_preload()  # 预热连接
+            self.chat_page.apply_config()  # 应用新配置（如剪贴板开关）
+
         self.settings_page = SettingsWidget(
             self.cfg,
             self.logs_page.append_log,
-            on_save_callback=self.chat_page.run_preload
+            on_save_callback=on_settings_saved  # 使用新的回调
         )
 
         # 信号连接：将 ChatWidget 的监视数据传给 ConsoleWidget

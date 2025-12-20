@@ -15,7 +15,8 @@ class ConfigManager:
             "custom_models": ["gpt-3.5-turbo", "gpt-4", "gpt-4o", "gpt-4o-mini"],
             "user_name": "Master",
             "ai_name": "AI Assistant",
-            "use_preset_directions": True
+            "use_preset_directions": True,
+            "enable_clipboard_monitor": True
         }
         self.config = self.load_config()
 
