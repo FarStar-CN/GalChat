@@ -67,7 +67,7 @@ class MainWindow(QMainWindow):
         sidebar_layout.setContentsMargins(5, 20, 5, 20)
 
         self.nav_btns = []
-        nav_items = [("对话", 0), ("设置", 1), ("日志", 2), (">_ 控制台", 3)]
+        nav_items = [("对话", 0), ("设置", 1), ("日志", 2), (">_ 终端", 3)]
 
         for text, idx in nav_items:
             btn = QPushButton(text)
