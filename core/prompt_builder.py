@@ -3,7 +3,7 @@
 # ----------------------------
 from enum import Enum
 from typing import List, Dict, Optional
-
+from datetime import datetime
 
 class PromptMode(Enum):
     PRELOAD = "preload"
@@ -83,12 +83,13 @@ class PromptBuilder:
             instruction = (
                 f"请构思3个有差异的回复方向，并生成对应的回复内容。同时，你应当同时概括该回复，但不要太过于精简，作为下文提到的[方向词]，要求方向词要达到类似galgame选项的效果，介于5到7个字\n"
             )
-
+        time_str = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         format_req = (
             "严苛格式要求：\n"
             "1. 仅输出3行，每行对应一个选项。\n"
             "2. 必须严格遵守格式：[方向词] 回复正文\n"
-            "3. 不要输出任何序号或额外说明。"
+            "3. 不要输出任何序号或额外说明。\n"
+            f"4. 当前时间：{time_str}"
         )
 
         return base_req + instruction + format_req
