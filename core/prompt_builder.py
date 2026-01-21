@@ -56,7 +56,7 @@ class PromptBuilder:
         raw_system_msg = self.cfg.get("system_prompt")
         use_preset = self.cfg.get("use_preset_directions")
 
-        # 这里的提示语也微调一下，强调同时生成回复
+
         if use_preset and preset_directions_str:
             content = (
                 f"{raw_system_msg}\n\n"
