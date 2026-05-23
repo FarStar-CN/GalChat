@@ -6,6 +6,7 @@ from PyQt6.QtGui import QFont, QTextCursor, QTextCharFormat, QColor
 from datetime import datetime
 
 from frontend.api_client import APIClient
+from frontend.theme import get_color
 
 
 class TerminalTextEdit(QTextEdit):
@@ -14,12 +15,13 @@ class TerminalTextEdit(QTextEdit):
     def __init__(self):
         super().__init__()
         self.prompt = "ADMIN>>>"
-        self.setStyleSheet("""
-            QTextEdit {
-                background-color: #0d0d0d;
+        self.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {get_color("terminal_bg")};
+                color: {get_color("terminal_text")};
                 border: none;
                 padding: 10px;
-            }
+            }}
         """)
         self.insert_prompt()
 
@@ -101,8 +103,14 @@ class ConsoleWidget(QWidget):
         layout.setSpacing(0)
 
         title_label = QLabel(">_ SYSTEM_TERMINAL ")
-        title_label.setStyleSheet(
-            "background-color: #1e1e1e; color: #666; padding: 5px 10px; font-family: Consolas; font-weight: bold; font-size: 10px;")
+        title_label.setStyleSheet(f"""
+            background-color: {get_color("bg_alt")};
+            color: {get_color("text_dim")};
+            padding: 5px 10px;
+            font-family: Consolas;
+            font-weight: bold;
+            font-size: 10px;
+        """)
         layout.addWidget(title_label)
 
         self.terminal = TerminalTextEdit()

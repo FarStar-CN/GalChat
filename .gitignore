@@ -16,3 +16,4 @@ htmlcov/
 config.json
 pyproject.toml
 uv.lock
+CLAUDE.md

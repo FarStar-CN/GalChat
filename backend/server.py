@@ -49,6 +49,7 @@ class ConfigUpdate(BaseModel):
     ai_name: Optional[str] = None
     use_preset_directions: Optional[bool] = None
     enable_clipboard_monitor: Optional[bool] = None
+    theme: Optional[str] = None
 
 
 # ── Endpoints ──

@@ -9,6 +9,7 @@ from enum import Enum, auto
 
 from frontend.api_client import APIClient
 from frontend.input_handler import InputHandler
+from frontend.theme import get_color
 
 
 class ConversationState(Enum):
@@ -30,6 +31,7 @@ class ChatWidget(QWidget):
         self.current_options_data = []
         self.config_cache = {}
         self._preset_directions_str = ""
+        self._displayed_messages = []  # (role, text, align_right)
 
         self.state = ConversationState.IDLE
 
@@ -39,7 +41,6 @@ class ChatWidget(QWidget):
         self.init_ui()
         self.update_ui_by_state()
 
-        # 从后端加载方向词库
         self.api.directions_ready.connect(self._on_directions_loaded)
         self.api.fetch_directions()
 
@@ -64,11 +65,17 @@ class ChatWidget(QWidget):
 
         if is_idle:
             self.send_btn.setText("发送")
-            self.send_btn.setStyleSheet("background-color: #0984e3; color: white; border-radius: 5px;")
-            self.input_field.setFocus()
+            self.send_btn.setProperty("send", True)
+            self.send_btn.setProperty("cancel", False)
         else:
             self.send_btn.setText("取消")
-            self.send_btn.setStyleSheet("background-color: #d63031; color: white; border-radius: 5px;")
+            self.send_btn.setProperty("send", False)
+            self.send_btn.setProperty("cancel", True)
+
+        # 刷新样式以应用属性变更
+        self.send_btn.style().unpolish(self.send_btn)
+        self.send_btn.style().polish(self.send_btn)
+        self.input_field.setFocus()
 
     def on_send_or_cancel_clicked(self):
         if self.state == ConversationState.IDLE:
@@ -110,7 +117,7 @@ class ChatWidget(QWidget):
         if not is_regenerate:
             self.current_user_input = text
             user_name = self.config_cache.get("user_name", "我")
-            self.append_chat(user_name, text, "#333333", align_right=False)
+            self.append_chat(user_name, text, get_color("accent"), align_right=False)
             self.input_field.clear()
 
         self.current_options_data = []
@@ -173,7 +180,7 @@ class ChatWidget(QWidget):
 
     def display_final_reply(self, reply):
         ai_name = self.config_cache.get("ai_name", "AI")
-        self.append_chat(ai_name, reply, "#0984e3", align_right=True)
+        self.append_chat(ai_name, reply, get_color("accent_strong"), align_right=True)
 
         self.history.append({"role": "user", "content": self.current_user_input})
         self.history.append({"role": "assistant", "content": reply})
@@ -193,15 +200,6 @@ class ChatWidget(QWidget):
 
         self.chat_display = QTextEdit()
         self.chat_display.setReadOnly(True)
-        self.chat_display.setStyleSheet("""
-        QTextEdit {
-            background-color: #f8f9fa;
-            color: #2d3436;
-            border-radius: 10px;
-            padding: 15px;
-            font-size: 15px;
-        }
-        """)
         self.blur_effect = QGraphicsBlurEffect()
         self.chat_display.setGraphicsEffect(self.blur_effect)
         self.stack_layout.addWidget(self.chat_display, 0, 0)
@@ -214,36 +212,22 @@ class ChatWidget(QWidget):
         self.option_btns = []
         for i in range(3):
             btn = QPushButton(f"选项 {i + 1}")
+            btn.setProperty("option", True)
             btn.setFixedHeight(60)
             btn.clicked.connect(lambda checked, idx=i: self.on_option_clicked(idx))
-            btn.setStyleSheet("""
-                QPushButton {
-                    background-color: rgba(45, 52, 54, 0.95);
-                    color: white;
-                    border-radius: 8px;
-                    font-size: 16px;
-                    font-weight: bold;
-                    border: 1px solid #636e72;
-                }
-                QPushButton:hover {
-                    background-color: rgba(9, 132, 227, 0.95);
-                    border: 1px solid #74b9ff;
-                }
-            """)
             overlay_layout.addWidget(btn)
             overlay_layout.addSpacing(10)
             self.option_btns.append(btn)
 
         aux_layout = QHBoxLayout()
         self.regen_btn = QPushButton("重新生成")
+        self.regen_btn.setProperty("aux", True)
         self.regen_btn.setFixedHeight(45)
-        self.regen_btn.setStyleSheet(
-            "background-color: #2d3436; color: #fab1a0; border-radius: 8px; font-weight: bold;")
         self.regen_btn.clicked.connect(self.on_regenerate_clicked)
 
         self.back_btn = QPushButton("返回修改")
+        self.back_btn.setProperty("aux", True)
         self.back_btn.setFixedHeight(45)
-        self.back_btn.setStyleSheet("background-color: #2d3436; color: #dfe6e9; border-radius: 8px; font-weight: bold;")
         self.back_btn.clicked.connect(self.handle_cancel)
 
         aux_layout.addWidget(self.regen_btn)
@@ -260,6 +244,7 @@ class ChatWidget(QWidget):
         self.input_field.returnPressed.connect(self.on_send_or_cancel_clicked)
 
         self.send_btn = QPushButton("发送")
+        self.send_btn.setProperty("send", True)
         self.send_btn.setFixedSize(80, 40)
         self.send_btn.clicked.connect(self.on_send_or_cancel_clicked)
 
@@ -300,6 +285,10 @@ class ChatWidget(QWidget):
             pass
 
     def append_chat(self, role, text, color, align_right=False):
+        self._displayed_messages.append((role, text, color, align_right))
+        self._render_message(role, text, color, align_right)
+
+    def _render_message(self, role, text, color, align_right):
         cursor = self.chat_display.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
 
@@ -309,8 +298,13 @@ class ChatWidget(QWidget):
         )
         cursor.insertBlock(block_format)
 
-        bubble_bg = "#dfefff" if align_right else "#ffffff"
-        bubble_text_color = "#2d3436"
+        if align_right:
+            bubble_bg = get_color("ai_bubble")
+            bubble_text_color = get_color("ai_bubble_text")
+        else:
+            bubble_bg = get_color("user_bubble")
+            bubble_text_color = get_color("text")
+
         safe_text = text.replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
 
         html = f"""
@@ -327,3 +321,9 @@ class ChatWidget(QWidget):
         """
         cursor.insertHtml(html)
         self.chat_display.ensureCursorVisible()
+
+    def refresh_theme(self):
+        """主题切换后重绘所有聊天记录。"""
+        self.chat_display.clear()
+        for role, text, color, align_right in self._displayed_messages:
+            self._render_message(role, text, color, align_right)

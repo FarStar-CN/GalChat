@@ -39,6 +39,10 @@ class SettingsWidget(QWidget):
         self.model_combo.addItems(custom_models)
         self.model_combo.setCurrentText(config.get("model", ""))
 
+        theme = config.get("theme", "auto")
+        theme_map = {"auto": "跟随系统", "dark": "深色", "light": "浅色"}
+        self.theme_combo.setCurrentText(theme_map.get(theme, "跟随系统"))
+
     def init_ui(self):
         layout = QFormLayout()
         layout.setContentsMargins(30, 30, 30, 30)
@@ -69,11 +73,16 @@ class SettingsWidget(QWidget):
         self.preset_checkbox = QCheckBox("启用预设回复库")
         layout.addRow("回复策略:", self.preset_checkbox)
 
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItems(["跟随系统", "深色", "浅色"])
+        layout.addRow("主题:", self.theme_combo)
+
         self.sys_prompt_edit = QTextEdit()
         self.sys_prompt_edit.setMaximumHeight(100)
         layout.addRow("系统人设:", self.sys_prompt_edit)
 
         self.save_btn = QPushButton("保存并应用")
+        self.save_btn.setProperty("save", True)
         self.save_btn.setFixedHeight(40)
         self.save_btn.clicked.connect(self.save_settings)
         layout.addRow(self.save_btn)
@@ -88,6 +97,8 @@ class SettingsWidget(QWidget):
             "ai_name": self.ai_name_input.text().strip(),
             "use_preset_directions": self.preset_checkbox.isChecked(),
             "enable_clipboard_monitor": self.clipboard_check.isChecked(),
+            "theme": {"跟随系统": "auto", "深色": "dark", "浅色": "light"}.get(
+                self.theme_combo.currentText(), "auto"),
         }
         # 只有当用户修改了 API Key 时才提交（避免将脱敏值写回覆盖真 key）
         new_key = self.api_input.text().strip()

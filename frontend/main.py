@@ -10,6 +10,7 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QFont
 
 from frontend.api_client import APIClient
+from frontend.theme import apply_theme
 from frontend.ui.logs_widget import LogsWidget
 from frontend.ui.console_widget import ConsoleWidget
 from frontend.ui.settings_widget import SettingsWidget
@@ -61,19 +62,37 @@ class MainWindow(QMainWindow):
 
         self.api = APIClient(BACKEND_URL)
         self.config_cache = {}
+        self._theme_mode = "auto"
 
         self.init_ui()
 
+        # 监听系统主题变化
+        try:
+            QApplication.styleHints().colorSchemeChanged.connect(self._on_system_theme_changed)
+        except AttributeError:
+            pass
+
         self.api.config_ready.connect(self.on_config_loaded)
         self.api.fetch_config()
+
+    def _on_system_theme_changed(self):
+        if self._theme_mode == "auto":
+            apply_theme(QApplication.instance(), "auto")
+            self.chat_page.refresh_theme()
 
     def closeEvent(self, event):
         for worker in self.api._workers[:]:
             worker.wait(3000)
         super().closeEvent(event)
 
+    def _refresh_theme(self):
+        self._theme_mode = self.config_cache.get("theme", "auto")
+        apply_theme(QApplication.instance(), self._theme_mode)
+        self.chat_page.refresh_theme()
+
     def on_config_loaded(self, config: dict):
         self.config_cache = config
+        self._refresh_theme()
         QTimer.singleShot(500, self.chat_page.run_preload)
         self.chat_page.apply_config_from_cache(config)
 
@@ -94,6 +113,7 @@ class MainWindow(QMainWindow):
             def refresh_and_apply(config):
                 self.api.config_ready.disconnect(refresh_and_apply)
                 self.config_cache = config
+                self._refresh_theme()
                 self.chat_page.run_preload()
                 self.chat_page.apply_config_from_cache(config)
             self.api.config_ready.connect(refresh_and_apply)
@@ -105,7 +125,6 @@ class MainWindow(QMainWindow):
             on_save_callback=on_settings_saved,
         )
 
-        # ChatWidget → ConsoleWidget 调试信号
         self.chat_page.payload_captured.connect(self.console_page.append_outgoing_payload)
         self.chat_page.options_generated.connect(self.console_page.append_generated_options)
         self.chat_page.reply_received.connect(self.console_page.append_incoming_reply)
@@ -116,8 +135,8 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.console_page)
 
         sidebar = QFrame()
+        sidebar.setProperty("sidebar", True)
         sidebar.setFixedWidth(130)
-        sidebar.setStyleSheet("background-color: #2d3436;")
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setSpacing(5)
         sidebar_layout.setContentsMargins(5, 20, 5, 20)
@@ -127,16 +146,9 @@ class MainWindow(QMainWindow):
 
         for text, idx in nav_items:
             btn = QPushButton(text)
+            btn.setProperty("nav", True)
             btn.setCheckable(True)
             btn.setFixedHeight(50)
-            btn.setStyleSheet("""
-                QPushButton {
-                    background-color: transparent; color: #b2bec3; border: none;
-                    font-size: 14px; border-radius: 5px; text-align: left; padding-left: 15px;
-                }
-                QPushButton:hover { background-color: #636e72; color: white;}
-                QPushButton:checked { background-color: #0984e3; color: white; border-left: 4px solid #74b9ff;}
-            """)
             btn.clicked.connect(lambda checked, i=idx: self.switch_page(i))
             sidebar_layout.addWidget(btn)
             self.nav_btns.append(btn)
