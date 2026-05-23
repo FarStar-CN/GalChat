@@ -27,7 +27,7 @@ def start_backend():
     _backend_process = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "backend.server:app", "--port", str(BACKEND_PORT)],
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
     )
     atexit.register(stop_backend)
 
@@ -40,7 +40,10 @@ def start_backend():
         except Exception:
             pass
         time.sleep(0.3)
-    raise RuntimeError("后端启动超时，请检查端口 8000 是否被占用。")
+    raise RuntimeError(
+        f"后端启动超时，请检查端口 {BACKEND_PORT} 是否被占用。\n"
+        f"后端输出: {_backend_process.stderr.read().decode(errors='replace')[-500:] if _backend_process.poll() else '(仍在运行)'}"
+    )
 
 
 def stop_backend():

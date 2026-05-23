@@ -6,7 +6,6 @@ from PyQt6.QtGui import QFont, QTextCursor, QTextCharFormat, QColor
 from datetime import datetime
 
 from frontend.api_client import APIClient
-from frontend.theme import get_color
 
 
 class TerminalTextEdit(QTextEdit):
@@ -15,14 +14,7 @@ class TerminalTextEdit(QTextEdit):
     def __init__(self):
         super().__init__()
         self.prompt = "ADMIN>>>"
-        self.setStyleSheet(f"""
-            QTextEdit {{
-                background-color: {get_color("terminal_bg")};
-                color: {get_color("terminal_text")};
-                border: none;
-                padding: 10px;
-            }}
-        """)
+        self.setObjectName("terminal")
         self.insert_prompt()
 
     def keyPressEvent(self, event):
@@ -103,19 +95,11 @@ class ConsoleWidget(QWidget):
         layout.setSpacing(0)
 
         title_label = QLabel(">_ SYSTEM_TERMINAL ")
-        title_label.setStyleSheet(f"""
-            background-color: {get_color("bg_alt")};
-            color: {get_color("text_dim")};
-            padding: 5px 10px;
-            font-family: Consolas;
-            font-weight: bold;
-            font-size: 10px;
-        """)
+        title_label.setObjectName("terminal_title")
         layout.addWidget(title_label)
 
         self.terminal = TerminalTextEdit()
         self.terminal.command_signal.connect(self.execute_command)
-
         layout.addWidget(self.terminal)
         self.setLayout(layout)
 
@@ -125,6 +109,15 @@ class ConsoleWidget(QWidget):
             self.terminal.insert_prompt()
             return
 
+        # 先断开旧连接，避免快速连续输入导致信号重复或丢失
+        try:
+            self.api.finished_reply.disconnect(self.on_worker_reply)
+        except TypeError:
+            pass
+        try:
+            self.api.error_occurred.disconnect(self.on_worker_error)
+        except TypeError:
+            pass
         self.api.finished_reply.connect(self.on_worker_reply)
         self.api.error_occurred.connect(self.on_worker_error)
         self.api.direct_chat(prompt=cmd, context=[])

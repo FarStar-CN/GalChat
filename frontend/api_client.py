@@ -44,7 +44,6 @@ class APIClient(QObject):
     finished_options = pyqtSignal(list)
     finished_reply = pyqtSignal(str)
     error_occurred = pyqtSignal(str)
-    log_message = pyqtSignal(str)
     debug_payload = pyqtSignal(str)
 
     config_ready = pyqtSignal(dict)

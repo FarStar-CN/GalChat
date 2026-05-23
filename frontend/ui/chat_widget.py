@@ -72,10 +72,8 @@ class ChatWidget(QWidget):
             self.send_btn.setProperty("send", False)
             self.send_btn.setProperty("cancel", True)
 
-        # 刷新样式以应用属性变更
         self.send_btn.style().unpolish(self.send_btn)
         self.send_btn.style().polish(self.send_btn)
-        self.input_field.setFocus()
 
     def on_send_or_cancel_clicked(self):
         if self.state == ConversationState.IDLE:
@@ -84,6 +82,15 @@ class ChatWidget(QWidget):
             self.handle_cancel()
 
     def handle_cancel(self):
+        self._disconnect_options()
+        self.log("用户取消了当前操作")
+        self.options_overlay.hide()
+        self.current_options_data = []
+        self.input_field.setText(self.current_user_input)
+        self.input_field.setFocus()
+        self.set_state(ConversationState.IDLE)
+
+    def _disconnect_options(self):
         try:
             self.api.finished_options.disconnect(self.show_options)
         except TypeError:
@@ -93,17 +100,12 @@ class ChatWidget(QWidget):
         except TypeError:
             pass
         try:
-            self.api.debug_payload.disconnect()
+            self.api.debug_payload.disconnect(self._on_debug_payload)
         except TypeError:
             pass
 
-        self.log("用户取消了当前操作")
-        self.options_overlay.hide()
-        self.current_options_data = []
-        # 恢复输入框内容，用户可以继续修改
-        self.input_field.setText(self.current_user_input)
-        self.input_field.setFocus()
-        self.set_state(ConversationState.IDLE)
+    def _on_debug_payload(self, payload: str):
+        self.payload_captured.emit(payload)
 
     def start_chat_flow(self, is_regenerate=False):
         if self.state != ConversationState.IDLE and not is_regenerate:
@@ -113,20 +115,19 @@ class ChatWidget(QWidget):
         if not text:
             return
 
-
         self.set_state(ConversationState.WAIT_OPTIONS)
 
         if not is_regenerate:
             self.current_user_input = text
             user_name = self.config_cache.get("user_name", "我")
-            self.append_chat(user_name, text, get_color("accent"), align_right=False)
+            self.append_chat(user_name, text, align_right=False)
             self.input_field.clear()
 
         self.current_options_data = []
 
         self.api.finished_options.connect(self.show_options)
         self.api.error_occurred.connect(self.handle_error)
-        self.api.debug_payload.connect(self.payload_captured.emit)
+        self.api.debug_payload.connect(self._on_debug_payload)
         self.api.get_options(
             prompt=text,
             context=self.history,
@@ -168,19 +169,20 @@ class ChatWidget(QWidget):
 
         self.log(f"用户选择了方向: [{label}]")
         self.options_overlay.hide()
-
         self.display_final_reply(content)
 
     def on_regenerate_clicked(self):
         self.log("用户请求重新生成选项...")
         self.options_overlay.hide()
-
+        self._disconnect_options()
         self.state = ConversationState.IDLE
         self.start_chat_flow(is_regenerate=True)
 
     def display_final_reply(self, reply):
+        self._disconnect_options()
+
         ai_name = self.config_cache.get("ai_name", "AI")
-        self.append_chat(ai_name, reply, get_color("accent_strong"), align_right=True)
+        self.append_chat(ai_name, reply, align_right=True)
 
         self.history.append({"role": "user", "content": self.current_user_input})
         self.history.append({"role": "assistant", "content": reply})
@@ -258,8 +260,7 @@ class ChatWidget(QWidget):
 
     def run_preload(self):
         self.api.preload_done.connect(self._on_preload_done)
-        self.api.error_occurred.connect(self._on_preload_error)
-        self.api.debug_payload.connect(self.payload_captured.emit)
+        self.api.debug_payload.connect(self._on_preload_debug)
         self.api.preload(self._preset_directions_str)
 
     def _on_preload_done(self):
@@ -270,25 +271,24 @@ class ChatWidget(QWidget):
         self.log(f"预热失败: {msg}")
         self._disconnect_preload()
 
+    def _on_preload_debug(self, payload: str):
+        self.payload_captured.emit(payload)
+
     def _disconnect_preload(self):
         try:
             self.api.preload_done.disconnect(self._on_preload_done)
         except TypeError:
             pass
         try:
-            self.api.error_occurred.disconnect(self._on_preload_error)
-        except TypeError:
-            pass
-        try:
-            self.api.debug_payload.disconnect()
+            self.api.debug_payload.disconnect(self._on_preload_debug)
         except TypeError:
             pass
 
-    def append_chat(self, role, text, color, align_right=False):
-        self._displayed_messages.append((role, text, color, align_right))
-        self._render_message(role, text, color, align_right)
+    def append_chat(self, role, text, align_right=False):
+        self._displayed_messages.append((role, text, align_right))
+        self._render_message(role, text, align_right)
 
-    def _render_message(self, role, text, color, align_right):
+    def _render_message(self, role, text, align_right):
         cursor = self.chat_display.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
 
@@ -298,6 +298,7 @@ class ChatWidget(QWidget):
         )
         cursor.insertBlock(block_format)
 
+        name_color = get_color("accent_strong") if align_right else get_color("accent")
         if align_right:
             bubble_bg = get_color("ai_bubble")
             bubble_text_color = get_color("ai_bubble_text")
@@ -309,7 +310,7 @@ class ChatWidget(QWidget):
 
         html = f"""
         <div style="margin: 5px;">
-            <span style="font-weight:bold; color:{color}; font-size:12px;">{role}</span><br>
+            <span style="font-weight:bold; color:{name_color}; font-size:12px;">{role}</span><br>
             <span style="
                 background-color: {bubble_bg};
                 color: {bubble_text_color};
@@ -323,7 +324,7 @@ class ChatWidget(QWidget):
         self.chat_display.ensureCursorVisible()
 
     def refresh_theme(self):
-        """主题切换后重绘所有聊天记录。"""
+        """主题切换后重绘所有聊天记录，颜色从当前主题重新解析。"""
         self.chat_display.clear()
-        for role, text, color, align_right in self._displayed_messages:
-            self._render_message(role, text, color, align_right)
+        for role, text, align_right in self._displayed_messages:
+            self._render_message(role, text, align_right)

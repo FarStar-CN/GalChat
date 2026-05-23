@@ -71,6 +71,7 @@ class AIService:
         messages, request_type = builder.build(
             mode=PromptMode.DIRECT_CHAT,
             prompt=prompt,
+            context=context or [],
         )
 
         debug = AIService._build_debug(messages, model, request_type)
@@ -113,7 +114,7 @@ class AIService:
             temperature=0.8,
         )
 
-        raw_content = response.choices[0].message.content.strip()
+        raw_content = (response.choices[0].message.content or "").strip()
         lines = [line.strip() for line in raw_content.split("\n") if line.strip()]
 
         parsed_options = []

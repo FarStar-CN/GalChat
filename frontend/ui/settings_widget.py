@@ -99,6 +99,8 @@ class SettingsWidget(QWidget):
             "enable_clipboard_monitor": self.clipboard_check.isChecked(),
             "theme": {"跟随系统": "auto", "深色": "dark", "浅色": "light"}.get(
                 self.theme_combo.currentText(), "auto"),
+            "custom_models": [self.model_combo.itemText(i)
+                              for i in range(self.model_combo.count())],
         }
         # 只有当用户修改了 API Key 时才提交（避免将脱敏值写回覆盖真 key）
         new_key = self.api_input.text().strip()

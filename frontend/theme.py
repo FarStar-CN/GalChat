@@ -52,7 +52,7 @@ LIGHT_COLORS = {
     "danger": "#d20f39",
     "option_hover": "#6c3fd4",
     "tooltip_bg": "#f0f2f6",
-    "tooltip_text": "#ffffff",
+    "tooltip_text": "#2d2f3d",
 }
 
 _current_mode = "dark"
@@ -202,6 +202,33 @@ def _build_qss(c):
         border: 1px solid {c["input_border"]};
         border-radius: 5px;
         padding: 10px;
+    }}
+
+    /* ── 终端 ── */
+    QTextEdit#terminal {{
+        background-color: {c["terminal_bg"]};
+        color: {c["terminal_text"]};
+        border: none;
+        padding: 10px;
+    }}
+
+    /* ── 终端标题 ── */
+    QLabel#terminal_title {{
+        background-color: {c["bg_alt"]};
+        color: {c["text_dim"]};
+        padding: 5px 10px;
+        font-family: Consolas;
+        font-weight: bold;
+        font-size: 10px;
+    }}
+
+    /* ── 日志区 ── */
+    QTextEdit#log_area {{
+        background-color: {c["log_bg"]};
+        color: {c["log_text"]};
+        border: none;
+        font-family: Consolas;
+        font-size: 12px;
     }}
 
     /* ── 下拉框 ── */
