@@ -2,7 +2,7 @@
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QTextEdit, QLineEdit,
-                             QMessageBox, QGridLayout, QGraphicsBlurEffect)
+                             QMessageBox, QGridLayout)
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QTextCursor, QTextBlockFormat
 from enum import Enum, auto
@@ -99,8 +99,10 @@ class ChatWidget(QWidget):
 
         self.log("用户取消了当前操作")
         self.options_overlay.hide()
-        self.blur_effect.setBlurRadius(0)
         self.current_options_data = []
+        # 恢复输入框内容，用户可以继续修改
+        self.input_field.setText(self.current_user_input)
+        self.input_field.setFocus()
         self.set_state(ConversationState.IDLE)
 
     def start_chat_flow(self, is_regenerate=False):
@@ -111,7 +113,7 @@ class ChatWidget(QWidget):
         if not text:
             return
 
-        self.blur_effect.setBlurRadius(0)
+
         self.set_state(ConversationState.WAIT_OPTIONS)
 
         if not is_regenerate:
@@ -138,8 +140,6 @@ class ChatWidget(QWidget):
         self.current_options_data = options_data
         self.log(f"生成数据包: {len(options_data)} 条方案")
         self.options_generated.emit(options_data)
-
-        self.blur_effect.setBlurRadius(15)
 
         for i, btn in enumerate(self.option_btns):
             if i < len(options_data):
@@ -168,13 +168,13 @@ class ChatWidget(QWidget):
 
         self.log(f"用户选择了方向: [{label}]")
         self.options_overlay.hide()
-        self.blur_effect.setBlurRadius(0)
+
         self.display_final_reply(content)
 
     def on_regenerate_clicked(self):
         self.log("用户请求重新生成选项...")
         self.options_overlay.hide()
-        self.blur_effect.setBlurRadius(0)
+
         self.state = ConversationState.IDLE
         self.start_chat_flow(is_regenerate=True)
 
@@ -200,12 +200,12 @@ class ChatWidget(QWidget):
 
         self.chat_display = QTextEdit()
         self.chat_display.setReadOnly(True)
-        self.blur_effect = QGraphicsBlurEffect()
-        self.chat_display.setGraphicsEffect(self.blur_effect)
         self.stack_layout.addWidget(self.chat_display, 0, 0)
 
         self.options_overlay = QWidget()
         self.options_overlay.hide()
+        self.options_overlay.setStyleSheet(
+            "background-color: rgba(0,0,0,0.35); border-radius: 10px;")
         overlay_layout = QVBoxLayout(self.options_overlay)
         overlay_layout.addStretch(1)
 

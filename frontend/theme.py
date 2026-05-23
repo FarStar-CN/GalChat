@@ -25,6 +25,9 @@ DARK_COLORS = {
     "log_bg": "#181825",
     "log_text": "#6c7086",
     "danger": "#f38ba8",
+    "option_hover": "#5a8de0",
+    "tooltip_bg": "#2d2d2d",
+    "tooltip_text": "#f0f0f0",
 }
 
 LIGHT_COLORS = {
@@ -47,6 +50,9 @@ LIGHT_COLORS = {
     "log_bg": "#e6e9ef",
     "log_text": "#9ca0b0",
     "danger": "#d20f39",
+    "option_hover": "#6c3fd4",
+    "tooltip_bg": "#f0f2f6",
+    "tooltip_text": "#ffffff",
 }
 
 _current_mode = "dark"
@@ -146,17 +152,17 @@ def _build_qss(c):
 
     /* ── 选项覆盖层按钮 ── */
     QPushButton[option="true"] {{
-        background-color: {c["surface"]};
-        color: {c["text"]};
+        background-color: {c["accent_strong"]};
+        color: white;
         border-radius: 8px;
         font-size: 16px;
         font-weight: bold;
-        border: 1px solid {c["surface_hover"]};
+        border: 2px solid {c["accent"]};
     }}
     QPushButton[option="true"]:hover {{
-        background-color: {c["accent_strong"]};
+        background-color: {c["option_hover"]};
         color: white;
-        border: 1px solid {c["accent"]};
+        border: 2px solid white;
     }}
 
     /* ── 辅助按钮（重新生成/返回修改） ── */
@@ -215,6 +221,16 @@ def _build_qss(c):
     /* ── 复选框 ── */
     QCheckBox {{
         color: {c["text"]};
+    }}
+
+    /* ── 工具提示 ── */
+    QToolTip {{
+        background-color: {c["tooltip_bg"]};
+        color: {c["tooltip_text"]};
+        border: 1px solid {c["accent"]};
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 13px;
     }}
 
     /* ── 表单布局 ── */
