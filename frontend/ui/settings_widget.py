@@ -32,6 +32,7 @@ class SettingsWidget(QWidget):
         self.ai_name_input.setText(config.get("ai_name", ""))
         self.clipboard_check.setChecked(config.get("enable_clipboard_monitor", True))
         self.preset_checkbox.setChecked(config.get("use_preset_directions", True))
+        self.qq_integration_check.setChecked(config.get("enable_qq_integration", False))
         self.sys_prompt_edit.setPlainText(config.get("system_prompt", ""))
 
         custom_models = config.get("custom_models", [])
@@ -73,6 +74,9 @@ class SettingsWidget(QWidget):
         self.preset_checkbox = QCheckBox("启用预设回复库")
         layout.addRow("回复策略:", self.preset_checkbox)
 
+        self.qq_integration_check = QCheckBox("启用 QQ-nt 集成（弹出式选项框）")
+        layout.addRow("QQ 集成:", self.qq_integration_check)
+
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(["跟随系统", "深色", "浅色"])
         layout.addRow("主题:", self.theme_combo)
@@ -97,6 +101,7 @@ class SettingsWidget(QWidget):
             "ai_name": self.ai_name_input.text().strip(),
             "use_preset_directions": self.preset_checkbox.isChecked(),
             "enable_clipboard_monitor": self.clipboard_check.isChecked(),
+            "enable_qq_integration": self.qq_integration_check.isChecked(),
             "theme": {"跟随系统": "auto", "深色": "dark", "浅色": "light"}.get(
                 self.theme_combo.currentText(), "auto"),
             "custom_models": [self.model_combo.itemText(i)

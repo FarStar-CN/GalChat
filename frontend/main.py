@@ -11,6 +11,7 @@ from PyQt6.QtGui import QFont
 
 from frontend.api_client import APIClient
 from frontend.theme import apply_theme
+from frontend.qq_integration import QQIntegration
 from frontend.ui.logs_widget import LogsWidget
 from frontend.ui.console_widget import ConsoleWidget
 from frontend.ui.settings_widget import SettingsWidget
@@ -67,6 +68,8 @@ class MainWindow(QMainWindow):
         self.config_cache = {}
         self._theme_mode = "auto"
 
+        self.qq_integration = QQIntegration(self.api, self._qq_log)
+
         self.init_ui()
 
         # 监听系统主题变化
@@ -93,9 +96,13 @@ class MainWindow(QMainWindow):
         apply_theme(QApplication.instance(), self._theme_mode)
         self.chat_page.refresh_theme()
 
+    def _qq_log(self, text: str):
+        self.logs_page.append_log(text)
+
     def on_config_loaded(self, config: dict):
         self.config_cache = config
         self._refresh_theme()
+        self.qq_integration.enabled = config.get("enable_qq_integration", False)
         QTimer.singleShot(500, self.chat_page.run_preload)
         self.chat_page.apply_config_from_cache(config)
 
@@ -110,13 +117,14 @@ class MainWindow(QMainWindow):
 
         self.logs_page = LogsWidget()
         self.console_page = ConsoleWidget(self.api)
-        self.chat_page = ChatWidget(self.api, self.logs_page.append_log)
+        self.chat_page = ChatWidget(self.api, self.logs_page.append_log, self.qq_integration)
 
         def on_settings_saved():
             def refresh_and_apply(config):
                 self.api.config_ready.disconnect(refresh_and_apply)
                 self.config_cache = config
                 self._refresh_theme()
+                self.qq_integration.enabled = config.get("enable_qq_integration", False)
                 self.chat_page.run_preload()
                 self.chat_page.apply_config_from_cache(config)
             self.api.config_ready.connect(refresh_and_apply)

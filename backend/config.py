@@ -17,6 +17,7 @@ class ConfigManager:
             "ai_name": "AI Assistant",
             "use_preset_directions": True,
             "enable_clipboard_monitor": True,
+            "enable_qq_integration": False,
             "theme": "auto"
         }
         self.config = self.load_config()

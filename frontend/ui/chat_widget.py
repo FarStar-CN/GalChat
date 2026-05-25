@@ -22,10 +22,11 @@ class ChatWidget(QWidget):
     reply_received = pyqtSignal(str)
     options_generated = pyqtSignal(list)
 
-    def __init__(self, api_client: APIClient, log_callback):
+    def __init__(self, api_client: APIClient, log_callback, qq_integration=None):
         super().__init__()
         self.api = api_client
         self.log = log_callback
+        self.qq_integration = qq_integration
         self.history = []
         self.current_user_input = ""
         self.current_options_data = []
@@ -38,6 +39,9 @@ class ChatWidget(QWidget):
         self.input_handler = InputHandler()
         self.input_handler.new_message_received.connect(self.on_external_message)
 
+        if self.qq_integration:
+            self.qq_integration.reply_injected.connect(self.input_handler.update_ai_reply)
+
         self.init_ui()
         self.update_ui_by_state()
 
@@ -49,9 +53,21 @@ class ChatWidget(QWidget):
 
     def apply_config_from_cache(self, config: dict):
         self.config_cache = config
-        is_monitor_on = config.get("enable_clipboard_monitor", True)
-        self.input_handler.set_enabled(is_monitor_on)
-        state_text = "开启" if is_monitor_on else "关闭"
+        qq_on = config.get("enable_qq_integration", False)
+        monitor_on = config.get("enable_clipboard_monitor", True)
+
+        # QQ 集成需要剪贴板监听，强制开启
+        if qq_on:
+            if not monitor_on:
+                self.log("QQ 集成已启用，强制开启剪贴板监听")
+            self.input_handler.set_enabled(True)
+            self.input_handler.start()
+        else:
+            self.input_handler.set_enabled(monitor_on)
+            if monitor_on:
+                self.input_handler.start()
+
+        state_text = "开启" if (monitor_on or qq_on) else "关闭"
         self.log(f"剪贴板监听已{state_text}")
 
     def set_state(self, new_state: ConversationState):
@@ -255,7 +271,19 @@ class ChatWidget(QWidget):
         main_layout.addLayout(input_layout)
 
     def on_external_message(self, text):
+        # QQ 集成模式：自动触发选项生成并在 QQ 旁弹窗
+        if self.qq_integration and self.qq_integration.enabled:
+            if self.state == ConversationState.IDLE:
+                self.log(f"[QQ 集成] 剪贴板检测到文本 ({len(text)} 字)，正在生成选项...")
+                self.qq_integration.handle_incoming_message(
+                    text, self._preset_directions_str)
+            else:
+                self.log(f"[QQ 集成] 剪贴板变化但状态非 IDLE ({self.state.name})，跳过")
+            return
+
+        # 普通模式
         if self.state == ConversationState.IDLE:
+            self.log(f"[剪贴板] 检测到内容 ({len(text)} 字)，已填入输入框")
             self.input_field.setText(text)
 
     def run_preload(self):
