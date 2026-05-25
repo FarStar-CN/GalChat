@@ -1,7 +1,22 @@
 [project]
-name = "test"
-version = "0.1.0"
-description = "Add your description here"
+name = "galchat"
+version = "0.2.0"
+description = "Galgame-style choice-driven AI chat experience"
 readme = "README.md"
-requires-python = ">=3.14"
-dependencies = []
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.20",
+    "pydantic>=2.0",
+    "openai>=1.0",
+    "PyQt6>=6.5",
+    "httpx>=0.25",
+    "python-xlib>=0.33; sys_platform == 'linux'",
+    "dbus-python>=1.3; sys_platform == 'linux'",
+]
+
+[project.optional-dependencies]
+dev = []
+
+[tool.uv]
+dev-dependencies = []
