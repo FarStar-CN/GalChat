@@ -3,8 +3,9 @@
 import os
 import sys
 
-# QQ-nt 运行在 XWayland，必须用 X11 后端才能读剪贴板
-os.environ["QT_QPA_PLATFORM"] = "xcb"
+# Linux + Wayland 环境：QQ-nt 运行在 XWayland，必须用 X11 后端共享剪贴板
+if sys.platform == "linux":
+    os.environ["QT_QPA_PLATFORM"] = "xcb"
 
 from frontend.main import start_backend, MainWindow
 from PyQt6.QtWidgets import QApplication

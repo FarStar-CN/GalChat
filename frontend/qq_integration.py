@@ -1,133 +1,70 @@
-"""QQ-nt 集成：窗口定位、弹出选项、文本注入。"""
+"""QQ-nt 集成：窗口定位、弹出选项、文本注入（跨平台）。"""
 
-import time
+import sys
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                               QPushButton, QLabel, QApplication)
 from PyQt6.QtCore import Qt, pyqtSignal
 
-import Xlib.display
-from Xlib.ext import xtest
-import Xlib.X
-import Xlib.XK
+# 平台后端选择
+if sys.platform == "win32":
+    from frontend._qq_platform_win32 import (
+        find_qq_windows, get_main_window_geometry, inject_text,
+    )
+elif sys.platform == "linux":
+    from frontend._qq_platform_linux import (
+        find_qq_windows, get_main_window_geometry, inject_text,
+    )
+else:
+    def find_qq_windows() -> list:
+        return []
+
+    def get_main_window_geometry() -> dict | None:
+        return None
+
+    def inject_text(text: str) -> bool:
+        return False
 
 
 class QQWindowFinder:
-    """通过 Xlib 查找 QQ-nt 窗口的位置和尺寸。"""
+    """跨平台 QQ 窗口查找器（委托给平台后端）。"""
 
     @staticmethod
     def find_qq_windows() -> list[dict]:
-        """返回所有 QQ 窗口信息列表，按面积降序排列。"""
-        display = Xlib.display.Display()
-        root = display.screen().root
-        results = []
-
-        def _recurse(window, depth=0):
-            if depth > 30:
-                return
-            try:
-                klass = window.get_wm_class()
-                if klass and 'qq' in str(klass[0]).lower():
-                    geom = window.get_geometry()
-                    w, h = geom.width, geom.height
-                    if w > 150 and h > 150:
-                        name = window.get_wm_name() or ""
-                        results.append({
-                            "window": window,
-                            "name": name,
-                            "x": geom.x, "y": geom.y,
-                            "width": w, "height": h,
-                            "area": w * h,
-                        })
-                for child in window.query_tree().children:
-                    _recurse(child, depth + 1)
-            except Exception:
-                pass
-
-        _recurse(root)
-        results.sort(key=lambda r: r["area"], reverse=True)
-        return results
+        return find_qq_windows()
 
     @classmethod
     def get_main_window_geometry(cls) -> dict | None:
-        """获取主 QQ 窗口几何信息（面积最大的窗口）。"""
-        windows = cls.find_qq_windows()
-        if not windows:
-            return None
-        win = windows[0]
-        return {"x": win["x"], "y": win["y"],
-                "width": win["width"], "height": win["height"]}
+        return get_main_window_geometry()
 
 
 class QQTextInjector:
-    """通过 XTest 将文本注入到 QQ-nt 输入框。"""
+    """跨平台文本注入器（委托给平台后端）。"""
 
-    # Ctrl+V 方式：将文本放入剪贴板后发送粘贴组合键
     @staticmethod
-    def inject_via_paste(text: str):
-        """将文本复制到剪贴板，然后向 QQ 窗口发送 Ctrl+V。"""
-        clipboard = QApplication.clipboard()
-        clipboard.setText(text)
-
-        display = Xlib.display.Display()
-        # 找到 QQ 窗口并聚焦
-        windows = QQWindowFinder.find_qq_windows()
-        if not windows:
-            return False
-
-        try:
-            win = windows[0]["window"]
-            # 尝试 raise 和 set input focus
-            win.configure(stack_mode=Xlib.X.Above)
-            win.set_input_focus(Xlib.X.RevertToParent, Xlib.X.CurrentTime)
-            display.sync()
-        except Exception:
-            pass
-
-        time.sleep(0.1)
-
-        # 获取 Control_L 和 V 的 keycode
-        keysym_v = Xlib.XK.string_to_keysym("v")
-        keycode_v = display.keysym_to_keycode(keysym_v)
-
-        # 查找 Control 键的 modifier 的 keycode
-        keysym_ctrl = Xlib.XK.string_to_keysym("Control_L")
-        keycode_ctrl = display.keysym_to_keycode(keysym_ctrl)
-
-        if keycode_ctrl == 0 or keycode_v == 0:
-            return False
-
-        # 按下 Ctrl
-        xtest.fake_input(display, Xlib.X.KeyPress, keycode_ctrl)
-        display.sync()
-        # 按下 V
-        xtest.fake_input(display, Xlib.X.KeyPress, keycode_v)
-        display.sync()
-        # 释放 V
-        xtest.fake_input(display, Xlib.X.KeyRelease, keycode_v)
-        display.sync()
-        # 释放 Ctrl
-        xtest.fake_input(display, Xlib.X.KeyRelease, keycode_ctrl)
-        display.sync()
-
-        return True
+    def inject_via_paste(text: str) -> bool:
+        return inject_text(text)
 
 
 class QQPopupOverlay(QWidget):
     """在 QQ 窗口附近显示的浮动选项弹窗。"""
 
-    option_selected = pyqtSignal(int)     # index
+    option_selected = pyqtSignal(int)
     regenerate_requested = pyqtSignal()
     cancel_requested = pyqtSignal()
 
     def __init__(self):
         super().__init__()
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.Popup
-        )
+        flags = (Qt.WindowType.FramelessWindowHint |
+                 Qt.WindowType.WindowStaysOnTopHint |
+                 Qt.WindowType.Popup)
+        self.setWindowFlags(flags)
+        # Windows: 提示无任务栏图标；Linux/X11: 标记为 dialog 类型
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
-        self.setAttribute(Qt.WidgetAttribute.WA_X11NetWmWindowTypeDialog, True)
+        if sys.platform == "linux":
+            self.setAttribute(Qt.WidgetAttribute.WA_X11NetWmWindowTypeDialog, True)
+        elif sys.platform == "win32":
+            self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+
         self._options_data = []
         self._option_btns = []
 
@@ -214,7 +151,6 @@ class QQPopupOverlay(QWidget):
         layout.addLayout(aux_layout)
 
     def show_options(self, options_data: list):
-        """显示选项数据，position_relative_to_qq_window 需先调用。"""
         self._options_data = options_data
         for i, btn in enumerate(self._option_btns):
             if i < len(options_data):
@@ -230,16 +166,14 @@ class QQPopupOverlay(QWidget):
         self.raise_()
 
     def position_near_qq(self):
-        """将弹窗定位到 QQ 主窗口中央。"""
-        geom = QQWindowFinder.get_main_window_geometry()
+        geom = get_main_window_geometry()
         if geom is None:
             return
         popup_w = self.width()
         popup_h = self.height()
-        # 居中在 QQ 窗口内
         x = geom["x"] + (geom["width"] - popup_w) // 2
         y = geom["y"] + (geom["height"] - popup_h) // 2
-        self.move(x, y)
+        self.move(max(0, x), max(0, y))
 
     def get_selected_content(self, index: int) -> str:
         if 0 <= index < len(self._options_data):
@@ -259,7 +193,6 @@ class QQIntegration(QWidget):
         self._enabled = False
         self._current_prompt = ""
         self._options_data = []
-        self._popup_closed_by_selection = False
 
         self.popup = QQPopupOverlay()
         self.popup.option_selected.connect(self._on_option_selected)
@@ -278,25 +211,18 @@ class QQIntegration(QWidget):
         self.log(f"QQ-nt 集成已{state}")
 
     def handle_incoming_message(self, text: str, preset_directions_str: str = ""):
-        """当检测到 QQ 消息时调用（目前通过剪贴板监听触发）。
-
-        该方法会调用 API 生成选项，结果显示在 QQ 旁弹窗中。
-        """
         if not self._enabled:
             return
 
         self._current_prompt = text
-        self._popup_closed_by_selection = False
 
-        # 确保 QQ 窗口存在
-        geom = QQWindowFinder.get_main_window_geometry()
+        geom = get_main_window_geometry()
         if geom is None:
             self.log("QQ 集成：未找到 QQ-nt 窗口，请先打开 QQ")
             return
 
         self.log(f"QQ 集成：收到消息，生成选项中...")
 
-        # 连接 API 信号
         try:
             self.api.finished_options.connect(self._on_options_ready)
         except TypeError:
@@ -336,17 +262,16 @@ class QQIntegration(QWidget):
         if index >= len(self._options_data):
             return
         content = self.popup.get_selected_content(index)
-        self._popup_closed_by_selection = True
         self.popup.hide()
-        self.log(f"QQ 集成：用户选择了选项 [{self._options_data[index].get('label', '?')}]")
+        label = self._options_data[index].get("label", "?")
+        self.log(f"QQ 集成：用户选择了选项 [{label}]")
 
-        # 注入文本到 QQ
         success = QQTextInjector.inject_via_paste(content)
         if success:
-            self.log(f"QQ 集成：回复已注入到 QQ (Ctrl+V)")
+            self.log("QQ 集成：回复已注入到 QQ (Ctrl+V)")
             self.reply_injected.emit(content)
         else:
-            self.log(f"QQ 集成：注入失败，回复内容已放入剪贴板")
+            self.log("QQ 集成：注入失败，回复内容已放入剪贴板")
             self.reply_injected.emit(content)
 
     def _on_regenerate(self):
