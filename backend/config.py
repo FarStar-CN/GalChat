@@ -16,7 +16,8 @@ class ConfigManager:
             "user_name": "Master",
             "ai_name": "AI Assistant",
             "use_preset_directions": True,
-            "enable_clipboard_monitor": True
+            "enable_clipboard_monitor": True,
+            "theme": "auto"
         }
         self.config = self.load_config()
 
