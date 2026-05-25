@@ -6,12 +6,22 @@ from Xlib.ext import xtest
 import Xlib.X
 import Xlib.XK
 
+_display = None
+
+
+def _get_display():
+    """获取复用的 X11 Display 连接。"""
+    global _display
+    if _display is None:
+        _display = Xlib.display.Display()
+    return _display
+
 
 # ── 窗口查找 ──
 
 def find_qq_windows() -> list[dict]:
     """通过 Xlib 枚举所有 QQ-nt 窗口，按面积降序排列。"""
-    display = Xlib.display.Display()
+    display = _get_display()
     root = display.screen().root
     results = []
 
@@ -59,7 +69,7 @@ def inject_text(text: str) -> bool:
     from PyQt6.QtWidgets import QApplication
     QApplication.clipboard().setText(text)
 
-    display = Xlib.display.Display()
+    display = _get_display()
     windows = find_qq_windows()
     if not windows:
         return False

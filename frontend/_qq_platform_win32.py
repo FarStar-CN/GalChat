@@ -100,10 +100,9 @@ def inject_text(text: str) -> bool:
     from PyQt6.QtWidgets import QApplication
     QApplication.clipboard().setText(text)
 
-    # 2. 聚焦 QQ 窗口
-    _try_focus_qq()
+    if not _try_focus_qq():
+        return False  # QQ 窗口无法聚焦，不发送按键以免误粘贴到其他窗口
 
-    # 3. keybd_event 发送 Ctrl+V
     VK_CONTROL = 0x11
     VK_V = 0x56
     KEYEVENTF_KEYUP = 0x0002

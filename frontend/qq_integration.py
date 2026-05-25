@@ -15,6 +15,9 @@ elif sys.platform == "linux":
         find_qq_windows, get_main_window_geometry, inject_text,
     )
 else:
+    import warnings
+    warnings.warn(f"QQ-nt 集成不支持当前平台 ({sys.platform})，功能将不可用")
+
     def find_qq_windows() -> list:
         return []
 
@@ -192,6 +195,7 @@ class QQIntegration(QWidget):
         self.log = log_callback
         self._enabled = False
         self._current_prompt = ""
+        self._preset_directions_str = ""
         self._options_data = []
 
         self.popup = QQPopupOverlay()
@@ -215,6 +219,7 @@ class QQIntegration(QWidget):
             return
 
         self._current_prompt = text
+        self._preset_directions_str = preset_directions_str
 
         geom = get_main_window_geometry()
         if geom is None:
@@ -223,14 +228,10 @@ class QQIntegration(QWidget):
 
         self.log(f"QQ 集成：收到消息，生成选项中...")
 
-        try:
-            self.api.finished_options.connect(self._on_options_ready)
-        except TypeError:
-            pass
-        try:
-            self.api.error_occurred.connect(self._on_api_error)
-        except TypeError:
-            pass
+        # 先断开旧连接再重连，防止重复连接导致首次响应后全部被移除
+        self._disconnect_api()
+        self.api.finished_options.connect(self._on_options_ready)
+        self.api.error_occurred.connect(self._on_api_error)
 
         self.api.get_options(
             prompt=text,
@@ -266,18 +267,18 @@ class QQIntegration(QWidget):
         label = self._options_data[index].get("label", "?")
         self.log(f"QQ 集成：用户选择了选项 [{label}]")
 
+        # 先更新 InputHandler 防循环标记，再操作剪贴板
+        self.reply_injected.emit(content)
         success = QQTextInjector.inject_via_paste(content)
         if success:
             self.log("QQ 集成：回复已注入到 QQ (Ctrl+V)")
-            self.reply_injected.emit(content)
         else:
             self.log("QQ 集成：注入失败，回复内容已放入剪贴板")
-            self.reply_injected.emit(content)
 
     def _on_regenerate(self):
         self.popup.hide()
         self.log("QQ 集成：重新生成选项...")
-        self.handle_incoming_message(self._current_prompt)
+        self.handle_incoming_message(self._current_prompt, self._preset_directions_str)
 
     def _on_cancel(self):
         self.popup.hide()
