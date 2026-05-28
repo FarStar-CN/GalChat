@@ -88,10 +88,6 @@ def get_color(key: str) -> str:
     return _colors.get(key, "#000000")
 
 
-def current_mode() -> str:
-    return _current_mode
-
-
 def _build_qss(c):
     """构建完整的全局 Qt 样式表。"""
     return f"""
@@ -148,6 +144,19 @@ def _build_qss(c):
         color: white;
         border-radius: 5px;
         font-size: 14px;
+    }}
+
+    /* ── 选项覆盖层按钮 ── */
+    /* ── AI 选项触发按钮 ── */
+    QPushButton[option_trigger="true"] {{
+        background-color: {c["accent"]};
+        color: white;
+        border-radius: 5px;
+        font-size: 14px;
+        font-weight: bold;
+    }}
+    QPushButton[option_trigger="true"]:hover {{
+        background-color: {c["option_hover"]};
     }}
 
     /* ── 选项覆盖层按钮 ── */
@@ -263,6 +272,52 @@ def _build_qss(c):
     /* ── 表单布局 ── */
     QFormLayout {{
         background-color: transparent;
+    }}
+
+    /* ── 对话列表 ── */
+    QFrame[conv_list="true"] {{
+        background-color: {c["bg_alt"]};
+    }}
+    QLabel[conv_header="true"] {{
+        color: {c["text"]};
+        font-size: 14px;
+        background: transparent;
+    }}
+    QPushButton[conv_new="true"] {{
+        background-color: {c["accent_strong"]};
+        color: white;
+        border-radius: 15px;
+        font-size: 18px;
+        font-weight: bold;
+    }}
+    QPushButton[conv_new="true"]:hover {{
+        background-color: {c["accent"]};
+    }}
+    QPushButton[conv_item="true"] {{
+        background-color: transparent;
+        color: {c["text"]};
+        border: none;
+        border-radius: 5px;
+        text-align: left;
+        padding: 8px 10px;
+    }}
+    QPushButton[conv_item="true"]:hover {{
+        background-color: {c["surface_hover"]};
+    }}
+    QPushButton[conv_item_active="true"] {{
+        background-color: {c["accent_strong"]};
+        color: white;
+    }}
+    QLabel[conv_empty="true"] {{
+        color: {c["text_dim"]};
+        font-size: 13px;
+        padding: 20px;
+        background: transparent;
+    }}
+
+    QScrollArea[conv_scroll="true"] {{
+        background-color: transparent;
+        border: none;
     }}
 
     /* ── 滚动条 ── */

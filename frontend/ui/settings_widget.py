@@ -9,6 +9,13 @@ from PyQt6.QtWidgets import (
 from frontend.api_client import APIClient
 
 
+def _safe_int(s: str, default: int) -> int:
+    try:
+        return int(s)
+    except ValueError:
+        return default
+
+
 class SettingsWidget(QWidget):
     def __init__(self, api_client: APIClient, log_callback, on_save_callback=None):
         super().__init__()
@@ -42,6 +49,14 @@ class SettingsWidget(QWidget):
         theme = config.get("theme", "auto")
         theme_map = {"auto": "跟随系统", "dark": "深色", "light": "浅色"}
         self.theme_combo.setCurrentText(theme_map.get(theme, "跟随系统"))
+
+        # QQ 监听设置
+        qq_enabled = config.get("enable_qq_monitor", False)
+        self.qq_monitor_check.setChecked(qq_enabled)
+        self.qq_host_input.setText(config.get("napcat_ws_host", "127.0.0.1"))
+        self.qq_port_input.setText(str(config.get("napcat_ws_port", 3001)))
+        self.qq_token_input.setText(config.get("napcat_access_token", ""))
+        self._toggle_qq_fields()
 
     def init_ui(self):
         layout = QFormLayout()
@@ -77,6 +92,25 @@ class SettingsWidget(QWidget):
         self.theme_combo.addItems(["跟随系统", "深色", "浅色"])
         layout.addRow("主题:", self.theme_combo)
 
+        layout.addRow(QLabel("<b>--- QQ 消息监听 ---</b>"))
+
+        self.qq_monitor_check = QCheckBox("启用 QQ 消息监听（需 NapCatQQ 运行）")
+        self.qq_monitor_check.toggled.connect(self._toggle_qq_fields)
+        layout.addRow("QQ 监听:", self.qq_monitor_check)
+
+        self.qq_host_input = QLineEdit()
+        self.qq_host_input.setPlaceholderText("127.0.0.1")
+        layout.addRow("WS 地址:", self.qq_host_input)
+
+        self.qq_port_input = QLineEdit()
+        self.qq_port_input.setPlaceholderText("3001")
+        layout.addRow("WS 端口:", self.qq_port_input)
+
+        self.qq_token_input = QLineEdit()
+        self.qq_token_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.qq_token_input.setPlaceholderText("NapCat access token")
+        layout.addRow("Access Token:", self.qq_token_input)
+
         self.sys_prompt_edit = QTextEdit()
         self.sys_prompt_edit.setMaximumHeight(100)
         layout.addRow("系统人设:", self.sys_prompt_edit)
@@ -87,6 +121,12 @@ class SettingsWidget(QWidget):
         self.save_btn.clicked.connect(self.save_settings)
         layout.addRow(self.save_btn)
         self.setLayout(layout)
+
+    def _toggle_qq_fields(self):
+        enabled = self.qq_monitor_check.isChecked()
+        self.qq_host_input.setEnabled(enabled)
+        self.qq_port_input.setEnabled(enabled)
+        self.qq_token_input.setEnabled(enabled)
 
     def save_settings(self):
         config = {
@@ -101,6 +141,10 @@ class SettingsWidget(QWidget):
                 self.theme_combo.currentText(), "auto"),
             "custom_models": [self.model_combo.itemText(i)
                               for i in range(self.model_combo.count())],
+            "enable_qq_monitor": self.qq_monitor_check.isChecked(),
+            "napcat_ws_host": self.qq_host_input.text().strip(),
+            "napcat_ws_port": _safe_int(self.qq_port_input.text().strip(), 3001),
+            "napcat_access_token": self.qq_token_input.text().strip(),
         }
         # 只有当用户修改了 API Key 时才提交（避免将脱敏值写回覆盖真 key）
         new_key = self.api_input.text().strip()

@@ -23,6 +23,8 @@ class _HttpWorker(QThread):
                     resp = client.get(self.url)
                 elif self.method == "PUT":
                     resp = client.put(self.url, json=self.body)
+                elif self.method == "DELETE":
+                    resp = client.delete(self.url)
                 else:
                     resp = client.post(self.url, json=self.body)
                 resp.raise_for_status()
@@ -33,7 +35,7 @@ class _HttpWorker(QThread):
                 detail = e.response.json().get("detail", str(e))
             except Exception:
                 detail = str(e)
-            self.error.emit(f"HTTP {e.response.status_code}: {detail}" if e.response.status_code else str(e))
+            self.error.emit(f"HTTP {e.response.status_code}: {detail}")
         except Exception as e:
             self.error.emit(str(e))
 
@@ -45,6 +47,16 @@ class APIClient(QObject):
     finished_reply = pyqtSignal(str)
     error_occurred = pyqtSignal(str)
     debug_payload = pyqtSignal(str)
+
+    conversations_ready = pyqtSignal(list)
+    conversation_loaded = pyqtSignal(dict)
+    conversation_created = pyqtSignal(dict)
+    conversation_updated = pyqtSignal()
+    conversation_deleted = pyqtSignal()
+    message_saved = pyqtSignal()
+
+    qq_events_ready = pyqtSignal(dict)
+    qq_status_ready = pyqtSignal(dict)
 
     config_ready = pyqtSignal(dict)
     directions_ready = pyqtSignal(list)
@@ -86,8 +98,10 @@ class APIClient(QObject):
 
     # ── AI 端点 ──
 
-    def get_options(self, prompt: str, context: list = None, preset_str: str = ""):
-        body = {"prompt": prompt, "context": context or [], "preset_directions_str": preset_str}
+    def get_options(self, prompt: str, context: list = None, preset_str: str = "",
+                    conversation_id: str = None):
+        body = {"prompt": prompt, "context": context or [], "preset_directions_str": preset_str,
+                "conversation_id": conversation_id}
         self._start_worker("POST", "/api/chat/options", body,
                            on_finished=self._on_options,
                            on_error=lambda e: self.error_occurred.emit(e))
@@ -141,4 +155,51 @@ class APIClient(QObject):
     def fetch_directions(self):
         self._start_worker("GET", "/api/directions",
                            on_finished=lambda data: self.directions_ready.emit(data.get("directions", [])),
+                           on_error=lambda e: self.error_occurred.emit(e))
+
+    # ── 对话管理端点 ──
+
+    def fetch_conversations(self):
+        self._start_worker("GET", "/api/conversations",
+                           on_finished=lambda data: self.conversations_ready.emit(data.get("conversations", [])),
+                           on_error=lambda e: self.error_occurred.emit(e))
+
+    def create_conversation(self, title: str = "新对话", conv_id: str = None):
+        body = {"title": title, "source": "manual", "conv_id": conv_id}
+        self._start_worker("POST", "/api/conversations", body,
+                           on_finished=lambda data: self.conversation_created.emit(data),
+                           on_error=lambda e: self.error_occurred.emit(e))
+
+    def fetch_conversation(self, conv_id: str):
+        self._start_worker("GET", f"/api/conversations/{conv_id}",
+                           on_finished=lambda data: self.conversation_loaded.emit(data),
+                           on_error=lambda e: self.error_occurred.emit(e))
+
+    def rename_conversation(self, conv_id: str, title: str):
+        body = {"title": title}
+        self._start_worker("PUT", f"/api/conversations/{conv_id}", body,
+                           on_finished=lambda data: self.conversation_updated.emit(),
+                           on_error=lambda e: self.error_occurred.emit(e))
+
+    def delete_conversation(self, conv_id: str):
+        self._start_worker("DELETE", f"/api/conversations/{conv_id}",
+                           on_finished=lambda data: self.conversation_deleted.emit(),
+                           on_error=lambda e: self.error_occurred.emit(e))
+
+    def save_message(self, conv_id: str, role: str, content: str):
+        body = {"role": role, "content": content}
+        self._start_worker("POST", f"/api/conversations/{conv_id}/messages", body,
+                           on_finished=lambda data: self.message_saved.emit(),
+                           on_error=lambda e: self.error_occurred.emit(e))
+
+    # ── QQ 消息端点 ──
+
+    def fetch_qq_events(self, since: int = 0):
+        self._start_worker("GET", f"/api/qq/events?since={since}",
+                           on_finished=lambda data: self.qq_events_ready.emit(data),
+                           on_error=lambda e: self.error_occurred.emit(e))
+
+    def fetch_qq_status(self):
+        self._start_worker("GET", "/api/qq/status",
+                           on_finished=lambda data: self.qq_status_ready.emit(data),
                            on_error=lambda e: self.error_occurred.emit(e))

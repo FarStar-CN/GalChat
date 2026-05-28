@@ -27,6 +27,7 @@ class ChatWidget(QWidget):
         self.api = api_client
         self.log = log_callback
         self.history = []
+        self._conv_id = None
         self.current_user_input = ""
         self.current_options_data = []
         self.config_cache = {}
@@ -62,6 +63,7 @@ class ChatWidget(QWidget):
     def update_ui_by_state(self):
         is_idle = (self.state == ConversationState.IDLE)
         self.input_field.setEnabled(is_idle)
+        self.options_btn.setVisible(is_idle)
 
         if is_idle:
             self.send_btn.setText("发送")
@@ -75,11 +77,32 @@ class ChatWidget(QWidget):
         self.send_btn.style().unpolish(self.send_btn)
         self.send_btn.style().polish(self.send_btn)
 
-    def on_send_or_cancel_clicked(self):
-        if self.state == ConversationState.IDLE:
-            self.start_chat_flow()
-        else:
+    def on_send_clicked(self):
+        """纯文本输入：追加到聊天显示和 history，不触发 AI。"""
+        if self.state != ConversationState.IDLE:
             self.handle_cancel()
+            return
+        text = self.input_field.text().strip()
+        if not text:
+            return
+        user_name = self.config_cache.get("user_name", "我")
+        self.append_chat(user_name, text, align_right=False)
+        self.history.append({"role": "user", "content": text})
+        self.current_user_input = text
+        if self._conv_id:
+            self.api.save_message(self._conv_id, "user", text)
+        self.input_field.clear()
+
+    def on_options_clicked(self):
+        """触发 AI 选项请求，以当前累积的 history 作为上下文。"""
+        if self.state != ConversationState.IDLE:
+            return
+        text = self.input_field.text().strip()
+        if text:
+            self.on_send_clicked()
+        if not self.history:
+            return
+        self.start_chat_flow()
 
     def handle_cancel(self):
         self._disconnect_options()
@@ -107,31 +130,28 @@ class ChatWidget(QWidget):
     def _on_debug_payload(self, payload: str):
         self.payload_captured.emit(payload)
 
-    def start_chat_flow(self, is_regenerate=False):
-        if self.state != ConversationState.IDLE and not is_regenerate:
+    def start_chat_flow(self):
+        if self.state != ConversationState.IDLE:
             return
 
-        text = self.input_field.text().strip() if not is_regenerate else self.current_user_input
-        if not text:
+        # 取最后一条用户输入作为 prompt，之前的历史作为 context（避免重复）
+        user_msgs = [m for m in self.history if m["role"] == "user"]
+        if not user_msgs:
             return
+        prompt = user_msgs[-1]["content"]
+        context = self.history[:-1] if len(self.history) > 1 else []
 
         self.set_state(ConversationState.WAIT_OPTIONS)
-
-        if not is_regenerate:
-            self.current_user_input = text
-            user_name = self.config_cache.get("user_name", "我")
-            self.append_chat(user_name, text, align_right=False)
-            self.input_field.clear()
-
         self.current_options_data = []
 
         self.api.finished_options.connect(self.show_options)
         self.api.error_occurred.connect(self.handle_error)
         self.api.debug_payload.connect(self._on_debug_payload)
         self.api.get_options(
-            prompt=text,
-            context=self.history,
+            prompt=prompt,
+            context=context,
             preset_str=self._preset_directions_str,
+            conversation_id=self._conv_id,
         )
 
     def show_options(self, options_data: list):
@@ -176,7 +196,7 @@ class ChatWidget(QWidget):
         self.options_overlay.hide()
         self._disconnect_options()
         self.state = ConversationState.IDLE
-        self.start_chat_flow(is_regenerate=True)
+        self.start_chat_flow()
 
     def display_final_reply(self, reply):
         self._disconnect_options()
@@ -184,8 +204,10 @@ class ChatWidget(QWidget):
         ai_name = self.config_cache.get("ai_name", "AI")
         self.append_chat(ai_name, reply, align_right=True)
 
-        self.history.append({"role": "user", "content": self.current_user_input})
         self.history.append({"role": "assistant", "content": reply})
+
+        if self._conv_id:
+            self.api.save_message(self._conv_id, "assistant", reply)
 
         self.input_handler.update_ai_reply(reply)
         self.set_state(ConversationState.IDLE)
@@ -243,15 +265,21 @@ class ChatWidget(QWidget):
         self.input_field = QLineEdit()
         self.input_field.setFixedHeight(40)
         self.input_field.setPlaceholderText("在此输入对话内容...")
-        self.input_field.returnPressed.connect(self.on_send_or_cancel_clicked)
+        self.input_field.returnPressed.connect(self.on_send_clicked)
 
         self.send_btn = QPushButton("发送")
         self.send_btn.setProperty("send", True)
-        self.send_btn.setFixedSize(80, 40)
-        self.send_btn.clicked.connect(self.on_send_or_cancel_clicked)
+        self.send_btn.setFixedSize(60, 40)
+        self.send_btn.clicked.connect(self.on_send_clicked)
+
+        self.options_btn = QPushButton("AI选项")
+        self.options_btn.setProperty("option_trigger", True)
+        self.options_btn.setFixedSize(70, 40)
+        self.options_btn.clicked.connect(self.on_options_clicked)
 
         input_layout.addWidget(self.input_field)
         input_layout.addWidget(self.send_btn)
+        input_layout.addWidget(self.options_btn)
         main_layout.addLayout(input_layout)
 
     def on_external_message(self, text):
@@ -260,6 +288,7 @@ class ChatWidget(QWidget):
 
     def run_preload(self):
         self.api.preload_done.connect(self._on_preload_done)
+        self.api.error_occurred.connect(self._on_preload_error)
         self.api.debug_payload.connect(self._on_preload_debug)
         self.api.preload(self._preset_directions_str)
 
@@ -277,6 +306,10 @@ class ChatWidget(QWidget):
     def _disconnect_preload(self):
         try:
             self.api.preload_done.disconnect(self._on_preload_done)
+        except TypeError:
+            pass
+        try:
+            self.api.error_occurred.disconnect(self._on_preload_error)
         except TypeError:
             pass
         try:
@@ -322,6 +355,31 @@ class ChatWidget(QWidget):
         """
         cursor.insertHtml(html)
         self.chat_display.ensureCursorVisible()
+
+    def load_conversation(self, conv: dict):
+        self._conv_id = conv["id"]
+        self.history = []
+        self._displayed_messages = []
+        self.chat_display.clear()
+
+        user_name = self.config_cache.get("user_name", "我")
+        ai_name = self.config_cache.get("ai_name", "AI")
+
+        for msg in conv.get("messages", []):
+            role = msg["role"]
+            content = msg["content"]
+            if role == "user":
+                self.append_chat(user_name, content, align_right=False)
+                self.history.append({"role": "user", "content": content})
+            elif role == "assistant":
+                self.append_chat(ai_name, content, align_right=True)
+                self.history.append({"role": "assistant", "content": content})
+
+    def clear_conversation(self):
+        self._conv_id = None
+        self.history = []
+        self._displayed_messages = []
+        self.chat_display.clear()
 
     def refresh_theme(self):
         """主题切换后重绘所有聊天记录，颜色从当前主题重新解析。"""

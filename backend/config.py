@@ -17,7 +17,11 @@ class ConfigManager:
             "ai_name": "AI Assistant",
             "use_preset_directions": True,
             "enable_clipboard_monitor": True,
-            "theme": "auto"
+            "theme": "auto",
+            "enable_qq_monitor": False,
+            "napcat_ws_host": "127.0.0.1",
+            "napcat_ws_port": 3001,
+            "napcat_access_token": "",
         }
         self.config = self.load_config()
 
@@ -26,7 +30,7 @@ class ConfigManager:
             try:
                 with open(self.filename, 'r', encoding='utf-8') as f:
                     return json.load(f)
-            except:
+            except (json.JSONDecodeError, OSError):
                 return self.default_config
         return self.default_config
 
